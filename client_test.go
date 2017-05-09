@@ -11,7 +11,7 @@ func TestTicker(t *testing.T) {
 	p, err := poloniex.New()
 
 	if err != nil {
-		t.Error("encountered an unexpected error:", err.Error())
+		t.Fatal("encountered an unexpected error:", err.Error())
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -19,9 +19,20 @@ func TestTicker(t *testing.T) {
 
 	ticker := p.Ticker(ctx)
 
-	update := <-ticker
+	for i := 0; i < 50; i++ {
+		update := <-ticker
 
-	if update == nil {
-		t.Error("expected non nil update, got:", update)
+		if update == nil {
+			t.Fatal("expected non nil update, got:", update)
+		}
+
+		if update.ToCurrency == "" || update.FromCurrency == "" {
+			t.Error("expected non-empty to/from currency, got:", update.FromCurrency)
+		}
+
+		if update.BaseVolume == 0.0 || update.DailyHigh == 0 || update.HighestBid == 0 || update.LastRate == 0 ||
+			update.LowestAsk == 0.0 || update.PercentageChange == 0.0 {
+			t.Error("expected non-zero currency metrics, got:", update)
+		}
 	}
 }
