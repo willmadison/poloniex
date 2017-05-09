@@ -1,0 +1,21 @@
+{
+	"version": 0,
+	"dependencies": [
+		{
+			"importpath": "github.com/jcelliott/turnpike",
+			"repository": "https://github.com/jcelliott/turnpike",
+			"vcs": "git",
+			"revision": "1c08e32e992047ae2b6de5d98a31b383d41bf2ef",
+			"branch": "v2",
+			"notests": true
+		},
+		{
+			"importpath": "gopkg.in/jcelliott/turnpike.v2",
+			"repository": "https://gopkg.in/jcelliott/turnpike.v2",
+			"vcs": "git",
+			"revision": "1c08e32e992047ae2b6de5d98a31b383d41bf2ef",
+			"branch": "v2",
+			"notests": true
+		}
+	]
+}
