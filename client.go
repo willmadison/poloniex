@@ -142,7 +142,7 @@ func (c *Client) Ticker(ctx context.Context) <-chan *Symbol {
 	return symbols
 }
 
-func (c *Client) close() error {
+func (c *Client) Close() error {
 	return c.turnpike.Close()
 }
 
