@@ -33,7 +33,7 @@ func (s Symbol) String() string {
 }
 
 const (
-	currencyPairIndex int = iota
+	currencyPairIndex     int = iota
 	lastRateIndex
 	lowestAskIndex
 	highestBidIndex
@@ -108,38 +108,37 @@ func toSymbol(tickerEntry []interface{}) (*Symbol, error) {
 }
 
 // Ticker returns a read-only channel of Poloniex ticker symbol entries.
-func (c *Client) Ticker(ctx context.Context) <-chan *Symbol {
+func (c *Client) Ticker(ctx context.Context) (<-chan *Symbol, error) {
 	symbols := make(chan *Symbol)
 
-	go func() {
-		err := c.turnpike.Subscribe("ticker", nil, turnpike.EventHandler(func(args []interface{}, kwargs map[string]interface{}) {
-			symbol, err := toSymbol(args)
-
-			if err != nil {
-				fmt.Println("encountered an error converting an event to a Symbol:", err)
-			}
-
-			symbols <- symbol
-		}))
-		defer c.turnpike.Unsubscribe("ticker")
-		defer close(symbols)
-
+	err := c.turnpike.Subscribe("ticker", nil, turnpike.EventHandler(func(args []interface{}, kwargs map[string]interface{}) {
+		symbol, err := toSymbol(args)
 		if err != nil {
-			fmt.Println("encountered an error subscribing to the 'ticker' topic:", errors.Wrap(err, "error subscribing to 'ticker' topic"))
-		} else {
-			for {
-				select {
-				case <-ctx.Done():
-					goto Exit
-				default:
-					c.turnpike.Receive()
-				}
-			}
+			fmt.Println("encountered an error converting an event to a Symbol:", err)
 		}
-	Exit:
+
+		select {
+		case <-ctx.Done():
+			close(symbols)
+			symbols = nil
+
+			if err := c.turnpike.Unsubscribe("ticker"); err != nil {
+				fmt.Println("encountered error during unsubscription:", err)
+			}
+		case symbols <- symbol:
+		}
+	}))
+
+	if err != nil {
+		fmt.Println("encountered an error subscribing to the 'ticker' topic:", errors.Wrap(err, "error subscribing to 'ticker' topic"))
+		return nil, errors.WithStack(err)
+	}
+
+	go func() {
+		c.turnpike.Receive()
 	}()
 
-	return symbols
+	return symbols, nil
 }
 
 func (c *Client) Close() error {

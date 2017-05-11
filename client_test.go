@@ -18,11 +18,15 @@ func TestTicker(t *testing.T) {
 	defer cancel()
 	defer p.Close()
 
-	ticker := p.Ticker(ctx)
+	ticker, err := p.Ticker(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	for i := 0; i < 50; i++ {
-		update := <-ticker
+	numUpdates := 0
+	maxUpdates := 50
 
+	for update := range ticker {
 		if update == nil {
 			t.Fatal("expected non nil update, got:", update)
 		}
@@ -32,8 +36,14 @@ func TestTicker(t *testing.T) {
 		}
 
 		if update.BaseVolume == 0.0 || update.DailyHigh == 0 || update.HighestBid == 0 || update.LastRate == 0 ||
-			update.LowestAsk == 0.0 || update.PercentageChange == 0.0 {
+				update.LowestAsk == 0.0 || update.PercentageChange == 0.0 {
 			t.Error("expected non-zero currency metrics, got:", update)
+		}
+
+		numUpdates++
+
+		if numUpdates >= maxUpdates {
+			break
 		}
 	}
 }
