@@ -31,8 +31,8 @@ func TestTicker(t *testing.T) {
 			t.Fatal("expected non nil update, got:", update)
 		}
 
-		if update.ToCurrency == "" || update.FromCurrency == "" {
-			t.Error("expected non-empty to/from currency, got:", update.FromCurrency)
+		if update.CounterCurrency == "" || update.BaseCurrency == "" {
+			t.Error("expected non-empty to/from currency, got:", update.BaseCurrency)
 		}
 
 		if update.BaseVolume == 0.0 || update.DailyHigh == 0 || update.HighestBid == 0 || update.LastRate == 0 ||

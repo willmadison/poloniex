@@ -19,16 +19,16 @@ type Client struct {
 
 // Symbol represents single Poloniex ticker symbol entry.
 type Symbol struct {
-	FromCurrency, ToCurrency                                      string
+	BaseCurrency, CounterCurrency                                 string
 	LastRate, LowestAsk, HighestBid, PercentageChange, BaseVolume float64
 	Frozen                                                        bool
 	DailyHigh                                                     float64
 }
 
 func (s Symbol) String() string {
-	return fmt.Sprintf(`Symbol{FromCurrency: %s, ToCurrency: %s, LastRate: %1.9f, LowestAsk: %1.9f,
+	return fmt.Sprintf(`Symbol{BaseCurrency: %s, CounterCurrency: %s, LastRate: %1.9f, LowestAsk: %1.9f,
 		HighestBid: %1.9f, PercentageChange: %5.5f,	BaseVolume: %9.7f, Frozen: %t, DailyHigh: %9.7f}`,
-		s.FromCurrency, s.ToCurrency, s.LastRate, s.LowestAsk,
+		s.BaseCurrency, s.CounterCurrency, s.LastRate, s.LowestAsk,
 		s.HighestBid, s.PercentageChange, s.BaseVolume, s.Frozen, s.DailyHigh)
 }
 
@@ -49,8 +49,7 @@ func toSymbol(tickerEntry []interface{}) (*Symbol, error) {
 
 	if currencyPair, ok := tickerEntry[currencyPairIndex].(string); ok {
 		parts := strings.Split(currencyPair, "_")
-		s.FromCurrency = parts[0]
-		s.ToCurrency = parts[1]
+		s.BaseCurrency, s.CounterCurrency = parts[1], parts[0]
 	}
 
 	var err error
