@@ -2,7 +2,6 @@ package poloniex_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
