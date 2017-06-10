@@ -5,7 +5,7 @@
 			"importpath": "github.com/jcelliott/turnpike",
 			"repository": "https://github.com/jcelliott/turnpike",
 			"vcs": "git",
-			"revision": "1c08e32e992047ae2b6de5d98a31b383d41bf2ef",
+			"revision": "fd62c756857599590cc1f661bd3e4e2ecf25cfd8",
 			"branch": "v2",
 			"notests": true
 		},
