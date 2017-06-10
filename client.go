@@ -261,7 +261,7 @@ func (b balanceInquiry) asBalance() (Balance, error) {
 	return balance, nil
 }
 
-// Balances returns a the current balances of your Poloniex account.
+// Balances returns the current balances of your Poloniex account.
 func (c *Client) Balances(ctx context.Context, apiKey, apiSecret string) (map[string]Balance, error) {
 	response, err := post(c.httpClient, "returnCompleteBalances", apiKey, apiSecret, url.Values{})
 	if err != nil {
@@ -347,7 +347,7 @@ func (t tradeHistoryResponse) asTrade() (Trade, error) {
 	return trade, nil
 }
 
-// TradeHistory return the trade history of the given currency pair from your Poloniex account.
+// TradeHistory returns the trade history of the given currency pair from your Poloniex account.
 func (c *Client) TradeHistory(ctx context.Context, apiKey, apiSecret, baseCurrency, counterCurrency string, from, to time.Time) (map[string]TradeHistory, error) {
 	params := url.Values{}
 
