@@ -41,6 +41,13 @@ type Symbol struct {
 	Frozen                          bool
 }
 
+func (s Symbol) String() string {
+	return fmt.Sprintf(`Symbol{BaseCurrency: %s, CounterCurrency: %s, LastRate: %1.8f, LowestAsk: %1.8f,
+		HighestBid: %1.8f, PercentageChange: %5.5f,	BaseVolume: %9.7f, Frozen: %t, DailyHigh: %1.8f}`,
+		s.BaseCurrency, s.CounterCurrency, s.LastRate, s.LowestAsk,
+		s.HighestBid, s.PercentageChange, s.BaseVolume, s.Frozen, s.DailyHigh)
+}
+
 // Balance represents the complete balance (available, on orders, and BTC value of a given currency)
 type Balance struct {
 	Available, OnOrders, BTCValue float64
@@ -57,6 +64,28 @@ func (t TradeHistory) String() string {
 	return fmt.Sprintf(`TradeHistory{BaseCurrency: %s, CounterCurrency: %s, AverageSellPrice: %1.8f, AverageBuyPrice: %1.8f,
 		BreakEvenPrice: %1.8f, Trades: %v}`,
 		t.BaseCurrency, t.CounterCurrency, t.AverageSellPrice, t.AverageBuyPrice, t.BreakEvenPrice, t.Trades)
+}
+
+// Criterion represents the trade history search criterion.
+type Criterion struct {
+	BaseCurrency, CounterCurrency string
+	From, To                      time.Time
+}
+
+var nilTime time.Time
+
+// WithTimeFrame returns a functional option which configures a Criterion time window according to the given to/from times.
+func WithTimeFrame(from, to time.Time) func(*Criterion) {
+	return func(c *Criterion) {
+		c.From, c.To = from, to
+	}
+}
+
+// WithCurrencyPair returns a functional option which configures a Criterion with the given currency pair.
+func WithCurrencyPair(baseCurrency, counterCurrency string) func(*Criterion) {
+	return func(c *Criterion) {
+		c.BaseCurrency, c.CounterCurrency = strings.TrimSpace(strings.ToUpper(baseCurrency)), strings.TrimSpace(strings.ToUpper(counterCurrency))
+	}
 }
 
 func (t *TradeHistory) analyze() {
@@ -103,11 +132,47 @@ func (t Trade) String() string {
 		t.GlobalTradeID, t.TradeID, t.Date, t.Rate, t.Amount, t.Total, t.Fee, t.OrderNumber, t.Type, t.Category)
 }
 
-func (s Symbol) String() string {
-	return fmt.Sprintf(`Symbol{BaseCurrency: %s, CounterCurrency: %s, LastRate: %1.8f, LowestAsk: %1.8f,
-		HighestBid: %1.8f, PercentageChange: %5.5f,	BaseVolume: %9.7f, Frozen: %t, DailyHigh: %1.8f}`,
-		s.BaseCurrency, s.CounterCurrency, s.LastRate, s.LowestAsk,
-		s.HighestBid, s.PercentageChange, s.BaseVolume, s.Frozen, s.DailyHigh)
+// OrderOption represents additional options for order (i.e. buy/sell) placement.
+type OrderOption struct {
+	FillOrKill        bool
+	ImmediateOrCancel bool
+	PostOnly          bool
+}
+
+// WithFillOrKill returns a functional option which configures a OrderOption to fillOrKill an order immediately.
+func WithFillOrKill() func(*OrderOption) {
+	return func(o *OrderOption) {
+		o.FillOrKill = true
+	}
+}
+
+// WithImmediateOrCancel returns a functional option which configures a OrderOption to place an order such that unfilled bits are immediately cancelled.
+func WithImmediateOrCancel() func(*OrderOption) {
+	return func(o *OrderOption) {
+		o.ImmediateOrCancel = true
+	}
+}
+
+// WithPostOnly returns a functional option which configures a OrderOption to place an order such that it will only be posted if no part of it fill imeediately.
+func WithPostOnly() func(*OrderOption) {
+	return func(o *OrderOption) {
+		o.PostOnly = true
+	}
+}
+
+// Receipt is an order receipt.
+type Receipt struct {
+	OrderNumber int64
+	Trades      []struct {
+		Amount, Total float64
+		Type, TradeID string
+		Date          time.Time
+	}
+}
+
+// FeeSchedule represents the Poloniex fee schedule for an individual trader.
+type FeeSchedule struct {
+	MakerFee, TakerFee, ThirtyDayVolume float64
 }
 
 const (
@@ -348,20 +413,30 @@ func (t tradeHistoryResponse) asTrade() (Trade, error) {
 }
 
 // TradeHistory returns the trade history of the given currency pair from your Poloniex account.
-func (c *Client) TradeHistory(ctx context.Context, apiKey, apiSecret, baseCurrency, counterCurrency string, from, to time.Time) (map[string]TradeHistory, error) {
+func (c *Client) TradeHistory(ctx context.Context, apiKey, apiSecret string, options ...func(*Criterion)) (map[string]TradeHistory, error) {
+	criterion := &Criterion{}
+
+	for _, option := range options {
+		option(criterion)
+	}
+
 	params := url.Values{}
 
-	var pair string
+	pair := "all"
 
-	if strings.TrimSpace(counterCurrency) == "" || strings.TrimSpace(baseCurrency) == "" {
-		pair = "all"
-	} else {
-		pair = fmt.Sprintf("%s_%s", strings.ToUpper(counterCurrency), strings.ToUpper(baseCurrency))
+	if criterion.CounterCurrency != "" && criterion.BaseCurrency != "" {
+		pair = fmt.Sprintf("%s_%s", criterion.CounterCurrency, criterion.BaseCurrency)
 	}
 
 	params.Set("currencyPair", pair)
-	params.Set("start", strconv.FormatInt(from.UTC().Unix(), 10))
-	params.Set("end", strconv.FormatInt(to.UTC().Unix(), 10))
+
+	if criterion.From != nilTime {
+		params.Set("start", strconv.FormatInt(criterion.From.UTC().Unix(), 10))
+	}
+
+	if criterion.To != nilTime {
+		params.Set("end", strconv.FormatInt(criterion.To.UTC().Unix(), 10))
+	}
 
 	response, err := post(c.httpClient, "returnTradeHistory", apiKey, apiSecret, params)
 	if err != nil {
@@ -386,8 +461,8 @@ func (c *Client) TradeHistory(ctx context.Context, apiKey, apiSecret, baseCurren
 		}
 
 		tradeHistory := &TradeHistory{
-			BaseCurrency:    baseCurrency,
-			CounterCurrency: counterCurrency,
+			BaseCurrency:    criterion.BaseCurrency,
+			CounterCurrency: criterion.CounterCurrency,
 		}
 
 		for _, t := range trades {
@@ -407,6 +482,7 @@ func (c *Client) TradeHistory(ctx context.Context, apiKey, apiSecret, baseCurren
 
 		err = json.Unmarshal(response, &tradesByCurrencyPair)
 		if err != nil {
+			fmt.Println("response:", string(response))
 			return nil, errors.Wrap(err, "encountered an error unmarshalling a trade history response")
 		}
 
@@ -434,8 +510,199 @@ func (c *Client) TradeHistory(ctx context.Context, apiKey, apiSecret, baseCurren
 	return history, nil
 }
 
+// Buy issues a buy order to the Poloniex exchange for the given currency pair, rate, and amount.
+func (c *Client) Buy(ctx context.Context, apiKey, apiSecret, baseCurrency, counterCurrency string, amount, rate float64, options ...func(*OrderOption)) (Receipt, error) {
+	return transact(ctx, c.httpClient, "buy", apiKey, apiSecret, baseCurrency, counterCurrency, amount, rate, options...)
+}
+
+// Sell issues a sell order to the Poloniex exchange for the given currency pair, rate, and amount.
+func (c *Client) Sell(ctx context.Context, apiKey, apiSecret, baseCurrency, counterCurrency string, amount, rate float64, options ...func(*OrderOption)) (Receipt, error) {
+	return transact(ctx, c.httpClient, "sell", apiKey, apiSecret, baseCurrency, counterCurrency, amount, rate, options...)
+}
+
 type client interface {
 	Do(req *http.Request) (*http.Response, error)
+}
+
+type buySellResponse struct {
+	OrderNumber     string `json:"orderNumber"`
+	ResultingTrades []struct {
+		Amount  string `json:"amount"`
+		Date    string `json:"date"`
+		Rate    string `json:"rate"`
+		Total   string `json:"total"`
+		TradeID string `json:"tradeID"`
+		Type    string `json:"type"`
+	} `json:"resultingTrades"`
+}
+
+func (b buySellResponse) asReceipt() (Receipt, error) {
+	r := Receipt{}
+	var err error
+
+	r.OrderNumber, err = strconv.ParseInt(b.OrderNumber, 10, 64)
+
+	for _, trade := range b.ResultingTrades {
+		amt, err := strconv.ParseFloat(trade.Amount, 64)
+		if err != nil {
+			return r, err
+		}
+
+		total, err := strconv.ParseFloat(trade.Total, 64)
+		if err != nil {
+			return r, err
+		}
+
+		date, err := time.Parse(DateFormat, trade.Date)
+		if err != nil {
+			return r, err
+		}
+
+		r.Trades = append(r.Trades, struct {
+			Amount, Total float64
+			Type, TradeID string
+			Date          time.Time
+		}{
+			Amount:  amt,
+			Total:   total,
+			Type:    trade.Type,
+			TradeID: trade.TradeID,
+			Date:    date,
+		})
+	}
+
+	return r, err
+}
+
+func transact(ctx context.Context, c client, buyOrSell, apiKey, apiSecret, baseCurrency, counterCurrency string, amount, rate float64, options ...func(*OrderOption)) (Receipt, error) {
+	o := &OrderOption{}
+
+	for _, option := range options {
+		option(o)
+	}
+
+	params := url.Values{}
+
+	var pair string
+
+	if baseCurrency != "" && counterCurrency != "" {
+		pair = strings.ToUpper(fmt.Sprintf("%s_%s", counterCurrency, baseCurrency))
+	}
+
+	params.Set("currencyPair", pair)
+	params.Set("rate", strconv.FormatFloat(rate, 'f', -1, 64))
+	params.Set("amount", strconv.FormatFloat(amount, 'f', -1, 64))
+
+	switch {
+	case o.FillOrKill:
+		params.Set("fillOrKill", "1")
+	case o.ImmediateOrCancel:
+		params.Set("immediateOrCancel", "1")
+	case o.PostOnly:
+		params.Set("postOnly", "1")
+	}
+
+	response, err := post(c, buyOrSell, apiKey, apiSecret, params)
+	if err != nil {
+		return Receipt{}, err
+	}
+
+	var apiError apiError
+
+	_ = json.Unmarshal(response, &apiError)
+	if apiError.Error != "" {
+		return Receipt{}, errors.New(apiError.Error)
+	}
+
+	var b buySellResponse
+
+	err = json.Unmarshal(response, &b)
+	if err != nil {
+		return Receipt{}, errors.Wrap(err, "encountered an error attempting to parse the buy/sell response")
+	}
+
+	return b.asReceipt()
+}
+
+type feeInfo struct {
+	MakerFee        string `json:"makerFee"`
+	TakerFee        string `json:"takerFee"`
+	ThirtyDayVolume string `json:"thirtyDayVolume"`
+}
+
+// FeeSchedule returns the current fee schedule based on the caller's 30 BTC volume.
+func (c *Client) FeeSchedule(ctx context.Context, apiKey, apiSecret string) (FeeSchedule, error) {
+	response, err := post(c.httpClient, "returnFeeInfo", apiKey, apiSecret, url.Values{})
+	if err != nil {
+		return FeeSchedule{}, err
+	}
+
+	var apiError apiError
+
+	_ = json.Unmarshal(response, &apiError)
+	if apiError.Error != "" {
+		return FeeSchedule{}, errors.New(apiError.Error)
+	}
+
+	var f feeInfo
+
+	err = json.Unmarshal(response, &f)
+	if err != nil {
+		return FeeSchedule{}, errors.Wrap(err, "encountered an error attempting to parse the fee info")
+	}
+
+	makerFee, err := strconv.ParseFloat(f.MakerFee, 64)
+	if err != nil {
+		return FeeSchedule{}, errors.Wrap(err, "encountered an error attempting to parse the makerFee")
+	}
+
+	takerFee, err := strconv.ParseFloat(f.TakerFee, 64)
+	if err != nil {
+		return FeeSchedule{}, errors.Wrap(err, "encountered an error attempting to parse the takerFee")
+	}
+
+	thirtyDayVol, err := strconv.ParseFloat(f.ThirtyDayVolume, 64)
+	if err != nil {
+		return FeeSchedule{}, errors.Wrap(err, "encountered an error attempting to parse the thirtyDayVol")
+	}
+
+	return FeeSchedule{
+		MakerFee:        makerFee,
+		TakerFee:        takerFee,
+		ThirtyDayVolume: thirtyDayVol,
+	}, nil
+}
+
+// CancelOrder attempts to cancel the given order number.
+func (c *Client) CancelOrder(ctx context.Context, apiKey, apiSecret string, orderNumber int64) error {
+	params := url.Values{}
+	params.Set("orderNumber", strconv.FormatInt(orderNumber, 10))
+	response, err := post(c.httpClient, "cancelOrder", apiKey, apiSecret, params)
+	if err != nil {
+		return err
+	}
+
+	var apiError apiError
+
+	_ = json.Unmarshal(response, &apiError)
+	if apiError.Error != "" {
+		return errors.New(apiError.Error)
+	}
+
+	var result struct {
+		Success int `json:"success"`
+	}
+
+	err = json.Unmarshal(response, &result)
+	if err != nil {
+		return errors.Wrap(err, "encountered an error attempting to parse the order cancellation response")
+	}
+
+	if result.Success != 1 {
+		return errors.New("unable to cancel order #" + strconv.FormatInt(orderNumber, 10))
+	}
+
+	return nil
 }
 
 func post(c client, command, apiKey, apiSecret string, params url.Values) (json.RawMessage, error) {
