@@ -28,8 +28,9 @@ const (
 
 // Client represents a Poloniex client.
 type Client struct {
-	turnpike   *turnpike.Client
-	httpClient *http.Client
+	turnpike          *turnpike.Client
+	httpClient        *http.Client
+	apiKey, apiSecret string
 }
 
 // Symbol represents a single Poloniex ticker symbol entry.
@@ -327,8 +328,8 @@ func (b balanceInquiry) asBalance() (Balance, error) {
 }
 
 // Balances returns the current balances of your Poloniex account.
-func (c *Client) Balances(ctx context.Context, apiKey, apiSecret string) (map[string]Balance, error) {
-	response, err := post(c.httpClient, "returnCompleteBalances", apiKey, apiSecret, url.Values{})
+func (c *Client) Balances(ctx context.Context) (map[string]Balance, error) {
+	response, err := post(c.httpClient, "returnCompleteBalances", c.apiKey, c.apiSecret, url.Values{})
 	if err != nil {
 		return nil, err
 	}
@@ -413,7 +414,7 @@ func (t tradeHistoryResponse) asTrade() (Trade, error) {
 }
 
 // TradeHistory returns the trade history of the given currency pair from your Poloniex account.
-func (c *Client) TradeHistory(ctx context.Context, apiKey, apiSecret string, options ...func(*Criterion)) (map[string]TradeHistory, error) {
+func (c *Client) TradeHistory(ctx context.Context, options ...func(*Criterion)) (map[string]TradeHistory, error) {
 	criterion := &Criterion{}
 
 	for _, option := range options {
@@ -438,7 +439,7 @@ func (c *Client) TradeHistory(ctx context.Context, apiKey, apiSecret string, opt
 		params.Set("end", strconv.FormatInt(criterion.To.UTC().Unix(), 10))
 	}
 
-	response, err := post(c.httpClient, "returnTradeHistory", apiKey, apiSecret, params)
+	response, err := post(c.httpClient, "returnTradeHistory", c.apiKey, c.apiSecret, params)
 	if err != nil {
 		return nil, err
 	}
@@ -511,13 +512,13 @@ func (c *Client) TradeHistory(ctx context.Context, apiKey, apiSecret string, opt
 }
 
 // Buy issues a buy order to the Poloniex exchange for the given currency pair, rate, and amount.
-func (c *Client) Buy(ctx context.Context, apiKey, apiSecret, baseCurrency, counterCurrency string, amount, rate float64, options ...func(*OrderOption)) (Receipt, error) {
-	return transact(ctx, c.httpClient, "buy", apiKey, apiSecret, baseCurrency, counterCurrency, amount, rate, options...)
+func (c *Client) Buy(ctx context.Context, baseCurrency, counterCurrency string, amount, rate float64, options ...func(*OrderOption)) (Receipt, error) {
+	return transact(ctx, c.httpClient, "buy", c.apiKey, c.apiSecret, baseCurrency, counterCurrency, amount, rate, options...)
 }
 
 // Sell issues a sell order to the Poloniex exchange for the given currency pair, rate, and amount.
-func (c *Client) Sell(ctx context.Context, apiKey, apiSecret, baseCurrency, counterCurrency string, amount, rate float64, options ...func(*OrderOption)) (Receipt, error) {
-	return transact(ctx, c.httpClient, "sell", apiKey, apiSecret, baseCurrency, counterCurrency, amount, rate, options...)
+func (c *Client) Sell(ctx context.Context, baseCurrency, counterCurrency string, amount, rate float64, options ...func(*OrderOption)) (Receipt, error) {
+	return transact(ctx, c.httpClient, "sell", c.apiKey, c.apiSecret, baseCurrency, counterCurrency, amount, rate, options...)
 }
 
 type client interface {
@@ -631,8 +632,8 @@ type feeInfo struct {
 }
 
 // FeeSchedule returns the current fee schedule based on the caller's 30 BTC volume.
-func (c *Client) FeeSchedule(ctx context.Context, apiKey, apiSecret string) (FeeSchedule, error) {
-	response, err := post(c.httpClient, "returnFeeInfo", apiKey, apiSecret, url.Values{})
+func (c *Client) FeeSchedule(ctx context.Context) (FeeSchedule, error) {
+	response, err := post(c.httpClient, "returnFeeInfo", c.apiKey, c.apiSecret, url.Values{})
 	if err != nil {
 		return FeeSchedule{}, err
 	}
@@ -674,10 +675,10 @@ func (c *Client) FeeSchedule(ctx context.Context, apiKey, apiSecret string) (Fee
 }
 
 // CancelOrder attempts to cancel the given order number.
-func (c *Client) CancelOrder(ctx context.Context, apiKey, apiSecret string, orderNumber int64) error {
+func (c *Client) CancelOrder(ctx context.Context, orderNumber int64) error {
 	params := url.Values{}
 	params.Set("orderNumber", strconv.FormatInt(orderNumber, 10))
-	response, err := post(c.httpClient, "cancelOrder", apiKey, apiSecret, params)
+	response, err := post(c.httpClient, "cancelOrder", c.apiKey, c.apiSecret, params)
 	if err != nil {
 		return err
 	}
@@ -744,7 +745,7 @@ func (c *Client) Close() error {
 }
 
 // New returns a new Poloniex client.
-func New() (*Client, error) {
+func New(apiKey, apiSecret string) (*Client, error) {
 	client, err := turnpike.NewWebsocketClient(turnpike.JSON, "wss://api.poloniex.com", nil, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "encountered an error initializing a new turnpike client")
@@ -768,5 +769,7 @@ func New() (*Client, error) {
 	return &Client{
 		turnpike:   client,
 		httpClient: httpClient,
+		apiKey:     apiKey,
+		apiSecret:  apiSecret,
 	}, err
 }

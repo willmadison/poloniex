@@ -14,8 +14,11 @@ import (
 var p *poloniex.Client
 
 func TestMain(m *testing.M) {
+	key := os.Getenv("POLONIEX_API_KEY")
+	secret := os.Getenv("POLONIEX_API_SECRET")
+
 	var err error
-	p, err = poloniex.New()
+	p, err = poloniex.New(key, secret)
 	if err != nil {
 		fmt.Println("encountered unexpected error:", err)
 		os.Exit(-1)
@@ -68,10 +71,7 @@ func TestBalances(t *testing.T) {
 		t.Skip()
 	}
 
-	key := os.Getenv("POLONIEX_API_KEY")
-	secret := os.Getenv("POLONIEX_API_SECRET")
-
-	balances, err := p.Balances(context.Background(), key, secret)
+	balances, err := p.Balances(context.Background())
 	if err != nil {
 		t.Fatal("encountered an unexpected error:", err)
 	}
@@ -91,7 +91,13 @@ func TestInvalidKeyErrors(t *testing.T) {
 	var key string
 	var secret string
 
-	_, err := p.Balances(context.Background(), key, secret)
+	var err error
+	invalid, err := poloniex.New(key, secret)
+	if err != nil {
+		t.Fatal("unable to instantiate new Poloniex client:", err)
+	}
+
+	_, err = invalid.Balances(context.Background())
 	if err == nil {
 		t.Fatal("invalid key should return an error!")
 	}
@@ -102,13 +108,10 @@ func TestTradeHistory(t *testing.T) {
 		t.Skip()
 	}
 
-	key := os.Getenv("POLONIEX_API_KEY")
-	secret := os.Getenv("POLONIEX_API_SECRET")
-
 	from, _ := time.Parse(poloniex.DateFormat, "2017-05-08 14:54:55")
 	to := time.Now()
 
-	history, err := p.TradeHistory(context.Background(), key, secret, poloniex.WithCurrencyPair("SC", "BTC"), poloniex.WithTimeFrame(from, to))
+	history, err := p.TradeHistory(context.Background(), poloniex.WithCurrencyPair("SC", "BTC"), poloniex.WithTimeFrame(from, to))
 	if err != nil {
 		t.Fatal("encountered an unexpected error:", err)
 	}
@@ -137,13 +140,10 @@ func TestTradeHistoryMissingPairFetchesAll(t *testing.T) {
 		t.Skip()
 	}
 
-	key := os.Getenv("POLONIEX_API_KEY")
-	secret := os.Getenv("POLONIEX_API_SECRET")
-
 	from, _ := time.Parse(poloniex.DateFormat, "2017-05-08 14:54:55")
 	to := time.Now()
 
-	history, err := p.TradeHistory(context.Background(), key, secret, poloniex.WithTimeFrame(from, to))
+	history, err := p.TradeHistory(context.Background(), poloniex.WithTimeFrame(from, to))
 	if err != nil {
 		t.Fatal("encountered an unexpected error:", err)
 	}
@@ -171,10 +171,7 @@ func TestBuyWithInsufficientTransactionTotal(t *testing.T) {
 		t.Skip()
 	}
 
-	key := os.Getenv("POLONIEX_API_KEY")
-	secret := os.Getenv("POLONIEX_API_SECRET")
-
-	_, err := p.Buy(context.Background(), key, secret, "SC", "BTC", 1, 0.00000500, poloniex.WithPostOnly())
+	_, err := p.Buy(context.Background(), "SC", "BTC", 1, 0.00000500, poloniex.WithPostOnly())
 	if err == nil {
 		t.Fatal("no error encountered. Expected an error regarding insufficient funds!")
 	}
@@ -185,10 +182,7 @@ func TestBuyWithEnoughBTCValue(t *testing.T) {
 		t.Skip()
 	}
 
-	key := os.Getenv("POLONIEX_API_KEY")
-	secret := os.Getenv("POLONIEX_API_SECRET")
-
-	receipt, err := p.Buy(context.Background(), key, secret, "SC", "BTC", 50, 0.00000500, poloniex.WithPostOnly())
+	receipt, err := p.Buy(context.Background(), "SC", "BTC", 50, 0.00000500, poloniex.WithPostOnly())
 	if err != nil {
 		t.Fatal("unexpected error encountered:", err)
 	}
@@ -207,10 +201,7 @@ func TestSellWithInsufficientTransactionTotal(t *testing.T) {
 		t.Skip()
 	}
 
-	key := os.Getenv("POLONIEX_API_KEY")
-	secret := os.Getenv("POLONIEX_API_SECRET")
-
-	_, err := p.Sell(context.Background(), key, secret, "SC", "BTC", 1, 0.00000500, poloniex.WithPostOnly())
+	_, err := p.Sell(context.Background(), "SC", "BTC", 1, 0.00000500, poloniex.WithPostOnly())
 	if err == nil {
 		t.Fatal("no error encountered. Expected an error regarding insufficient funds!")
 	}
@@ -221,10 +212,7 @@ func TestSellWithEnoughBTCValue(t *testing.T) {
 		t.Skip()
 	}
 
-	key := os.Getenv("POLONIEX_API_KEY")
-	secret := os.Getenv("POLONIEX_API_SECRET")
-
-	receipt, err := p.Sell(context.Background(), key, secret, "SC", "BTC", 50, 0.00000500, poloniex.WithPostOnly())
+	receipt, err := p.Sell(context.Background(), "SC", "BTC", 50, 0.00000500, poloniex.WithPostOnly())
 	if err != nil {
 		t.Fatal("unexpected error encountered:", err)
 	}
@@ -239,10 +227,7 @@ func TestFeeSchedule(t *testing.T) {
 		t.Skip()
 	}
 
-	key := os.Getenv("POLONIEX_API_KEY")
-	secret := os.Getenv("POLONIEX_API_SECRET")
-
-	schedule, err := p.FeeSchedule(context.Background(), key, secret)
+	schedule, err := p.FeeSchedule(context.Background())
 	if err != nil {
 		t.Fatal("unexpected error encountered:", err)
 	}
@@ -265,10 +250,7 @@ func TestOrderCancellation(t *testing.T) {
 		t.Skip()
 	}
 
-	key := os.Getenv("POLONIEX_API_KEY")
-	secret := os.Getenv("POLONIEX_API_SECRET")
-
-	receipt, err := p.Sell(context.Background(), key, secret, "SC", "BTC", 50, 0.00000500, poloniex.WithPostOnly())
+	receipt, err := p.Sell(context.Background(), "SC", "BTC", 50, 0.00000500, poloniex.WithPostOnly())
 	if err != nil {
 		t.Fatal("unexpected error encountered:", err)
 	}
@@ -277,7 +259,7 @@ func TestOrderCancellation(t *testing.T) {
 		t.Fatal("expected a valid order number to be returned!")
 	}
 
-	err = p.CancelOrder(context.Background(), key, secret, receipt.OrderNumber)
+	err = p.CancelOrder(context.Background(), receipt.OrderNumber)
 	if err != nil {
 		t.Error("expected order cancellation to be successful")
 	}
