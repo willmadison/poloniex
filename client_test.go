@@ -166,6 +166,24 @@ func TestTradeHistoryMissingPairFetchesAll(t *testing.T) {
 	}
 }
 
+func TestTradeHistoryEmptyHistory(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip()
+	}
+
+	from := time.Now()
+	to, _ := time.Parse(poloniex.DateFormat, "2017-05-08 14:54:55")
+
+	history, err := p.TradeHistory(context.Background(), poloniex.WithTimeFrame(from, to))
+	if err != nil {
+		t.Fatal("encountered an unexpected error:", err)
+	}
+
+	if len(history) != 0 {
+		t.Error("expected no trade history in the given time frame")
+	}
+}
+
 func TestBuyWithInsufficientTransactionTotal(t *testing.T) {
 	if os.Getenv("CI") != "" {
 		t.Skip()
@@ -191,8 +209,9 @@ func TestBuyWithEnoughBTCValue(t *testing.T) {
 		t.Fatal("expected a valid order number to be returned!")
 	}
 
-	if receipt.Trades == nil {
-		t.Fatal("expected a non-nil Trades slice.")
+	err = p.CancelOrder(context.Background(), receipt.OrderNumber)
+	if err != nil {
+		t.Error("expected order cancellation to be successful")
 	}
 }
 
@@ -219,6 +238,11 @@ func TestSellWithEnoughBTCValue(t *testing.T) {
 
 	if receipt.OrderNumber == 0 {
 		t.Fatal("expected a valid order number to be returned!")
+	}
+
+	err = p.CancelOrder(context.Background(), receipt.OrderNumber)
+	if err != nil {
+		t.Error("expected order cancellation to be successful")
 	}
 }
 

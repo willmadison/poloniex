@@ -479,11 +479,16 @@ func (c *Client) TradeHistory(ctx context.Context, options ...func(*Criterion)) 
 		tradeHistory.analyze()
 		history[pair] = *tradeHistory
 	} else {
+		var emptyResponse []interface{}
+		err = json.Unmarshal(response, &emptyResponse)
+		if err == nil {
+			return history, nil
+		}
+
 		var tradesByCurrencyPair map[string][]tradeHistoryResponse
 
 		err = json.Unmarshal(response, &tradesByCurrencyPair)
 		if err != nil {
-			fmt.Println("response:", string(response))
 			return nil, errors.Wrap(err, "encountered an error unmarshalling a trade history response")
 		}
 
