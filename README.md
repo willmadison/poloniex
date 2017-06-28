@@ -5,4 +5,4 @@ Go Poloniex Client Implementation
 
 If you found this useful, feel free to donate to the project here:
 
-![1HAVCMjorpFxR8V6AywsPrkq4v5unn4PWc](http://i.imgur.com/YGVzrus.png)
+![17jGeaHFFZjBG2hNzRTkyzwmLGrYM66yUa](http://i.imgur.com/yjBJV59.png)
